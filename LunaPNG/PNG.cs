@@ -2,9 +2,8 @@
 using System.Collections.Generic;
 using PNGLib.Chunks;
 
-namespace PNGLib
-{
-    /*
+namespace PNGLib {
+	/*
 	PNG Format:
 
 	Header: 89 50 4E 47 0D 0A 1A 0A (504E47 = "PNG")
@@ -45,8 +44,7 @@ namespace PNGLib
 	*/
 
 	//Only supports 4bpp indexed images
-    public class PNG
-	{
+	public class PNG {
 		//Header data
 		static byte[] header = { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
 		public IHDRChunk ihdrChunk;
@@ -56,12 +54,10 @@ namespace PNGLib
 
 
 
-		public PNG()
-		{
+		public PNG() {
 		}
 
-		public byte[] ToByteArray()
-		{
+		public byte[] ToByteArray() {
 			List<byte> data = new List<byte>();
 
 			//Add the header to the list
@@ -71,17 +67,16 @@ namespace PNGLib
 			//IHDR chunk
 			data.AddRange(ihdrChunk.ToByteArray());
 			//PLTE chunk
-            data.AddRange(plteChunk.ToByteArray());
+			data.AddRange(plteChunk.ToByteArray());
 			//IDAT chunks
-			foreach(IDATChunk chunk in idatChunks)
-			{
+			foreach (IDATChunk chunk in idatChunks) {
 				data.AddRange(chunk.ToByteArray());
 			}
 			//IEND chunk
-            data.AddRange(iendChunk.ToByteArray());
+			data.AddRange(iendChunk.ToByteArray());
 
 			return data.ToArray();
-        }
+		}
 	}
 }
 

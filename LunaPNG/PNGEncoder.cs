@@ -6,17 +6,14 @@ using PNGLib.Utility;
 using PNGLib.Chunks;
 using PNGLib.Filters;
 
-namespace PNGLib
-{
-	public class PNGEncoder
-	{
+namespace PNGLib {
+
+	public class PNGEncoder {
 		//Converts an indexed image to PNG, and returns the data.
 		//Only 4bpp indexed images are supported.
-		public static byte[] EncodeIndexedImageToPNG(int width, int height, byte bitDepth, byte[,] imageData, Color[] palette)
-		{
+		public static byte[] EncodeIndexedImageToPNG(int width, int height, byte bitDepth, byte[,] imageData, Color[] palette) {
 			//Check if the image data is valid
-			switch (bitDepth)
-			{
+			switch (bitDepth) {
 				case 4:
 					if (palette.Length != 16) throw new Exception("Error: Palette size should be 16 for 4bpp images");
 					break;
@@ -24,11 +21,11 @@ namespace PNGLib
 					throw new NotImplementedException("Bit depths other than 4 aren't supported");
 			}
 
-            PNG png = new PNG();
-            IHDRChunk ihdrChunk = new IHDRChunk(width, height, bitDepth, ColorType.Indexed, 0);
-            PLTEChunk plteChunk = new PLTEChunk(palette);
+			PNG png = new PNG();
+			IHDRChunk ihdrChunk = new IHDRChunk(width, height, bitDepth, ColorType.Indexed, 0);
+			PLTEChunk plteChunk = new PLTEChunk(palette);
 			//Filter and compress the image data before putting it into an IDAT chunk
-         
+
 
 			NONEFilter filter = new NONEFilter(imageData, bitDepth);
 			//Apply the filter to the image
@@ -36,8 +33,8 @@ namespace PNGLib
 			List<byte> compressedData = new List<byte>();
 
 			compressedData.AddRange(new byte[] { 0x78, 0xDA }); //Add the Zlib compression header
-            compressedData.AddRange(Compress(filteredData)); //Compress the filtered image data, and add it to the list
-			//Calculate the adler32 checksum of the image data
+			compressedData.AddRange(Compress(filteredData)); //Compress the filtered image data, and add it to the list
+															 //Calculate the adler32 checksum of the image data
 			Adler32 adler = new Adler32();
 			uint checksum = adler.Compute(filteredData);
 			compressedData.AddRange(checksum.ToByteArray());
@@ -52,30 +49,29 @@ namespace PNGLib
 
 			//Get the PNG image bytes and return them
 			return png.ToByteArray();
-        }
+		}
 
-		static byte[] Compress(byte[] data)
-		{
+		static byte[] Compress(byte[] data) {
 			MemoryStream ms = new MemoryStream();
-			using (DeflateStream deflateStream = new DeflateStream(ms, CompressionMode.Compress))
-			{
-                deflateStream.Write(data, 0, data.Length);
-            }
+			using (DeflateStream deflateStream = new DeflateStream(ms, CompressionMode.Compress)) {
+				deflateStream.Write(data, 0, data.Length);
+			}
 
 			//Return the compressed data from the memory stream
 			return ms.ToArray();
 		}
 
-        static byte[] Decompress(byte[] data) {
+		static byte[] Decompress(byte[] data) {
 			MemoryStream compressedStream = new MemoryStream(data);
-            MemoryStream decompressedStream = new MemoryStream();
-            using (DeflateStream deflateStream = new DeflateStream(compressedStream, CompressionMode.Decompress)) {
+			MemoryStream decompressedStream = new MemoryStream();
+			using (DeflateStream deflateStream = new DeflateStream(compressedStream, CompressionMode.Decompress)) {
 				deflateStream.CopyTo(decompressedStream);
-            }
+			}
 
-            //Return the compressed data from the memory stream
-            return decompressedStream.ToArray();
-        }
-    }
+			//Return the compressed data from the memory stream
+			return decompressedStream.ToArray();
+		}
+	}
+
 }
 
