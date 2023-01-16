@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Linq;
 
-namespace PNGLib {
+namespace LunaPNG {
 	public static class GeneralExtentions {
 		//Converts an int to a byte array in big endian order
 		public static byte[] ToByteArray(this int val) {

@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace PNGLib.Utility {
+namespace LunaPNG.Utility {
 
 	public struct Color {
 		public byte r = 0;

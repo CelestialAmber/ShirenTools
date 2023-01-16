@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace PNGLib.Chunks {
+namespace LunaPNG.Chunks {
 	public enum ColorType {
 		Grayscale = 0,
 		RGB = 2,

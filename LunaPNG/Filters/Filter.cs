@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace PNGLib.Filters {
+namespace LunaPNG.Filters {
 
 	//Base class for PNG filters, which are applied before DEFLATE compression.
 	public abstract class Filter {

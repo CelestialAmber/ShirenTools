@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace PNGLib.Utility {
+namespace LunaPNG.Utility {
 	//Implementation of the Adler32 checksum algorithm.
 	public class Adler32 {
 		const uint MOD_ADLER = 65521;

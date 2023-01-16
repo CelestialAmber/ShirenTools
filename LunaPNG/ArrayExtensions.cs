@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace PNGLib {
+namespace LunaPNG {
 
 	public static class ArrayExtensions {
 		public static T[] GetRow<T>(this T[,] array, int rowIndex) {

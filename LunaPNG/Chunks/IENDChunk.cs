@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace PNGLib.Chunks {
+namespace LunaPNG.Chunks {
 	public class IENDChunk : Chunk {
 		public const string name = "IEND";
 

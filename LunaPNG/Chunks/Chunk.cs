@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.IO.Hashing;
 
-namespace PNGLib.Chunks {
+namespace LunaPNG.Chunks {
 	//Base class for a PNG chunk.
 	public abstract class Chunk {
 		//Gets the length of the chunk data section

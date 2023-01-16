@@ -10,11 +10,17 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <None Remove="Utils\" />
+  </ItemGroup>
+  <ItemGroup>
     <None Update="palettes.pal">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\LunaPNG\LunaPNG.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Utils\" />
   </ItemGroup>
 </Project>

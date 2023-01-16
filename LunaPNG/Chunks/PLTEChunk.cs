@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
-using PNGLib.Utility;
+using LunaPNG.Utility;
 
-namespace PNGLib.Chunks {
+namespace LunaPNG.Chunks {
 	public class PLTEChunk : Chunk {
 
 		public const string name = "PLTE";

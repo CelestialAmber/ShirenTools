@@ -1,7 +1,7 @@
 ﻿using System;
 using System.IO;
-using PNGLib;
-using PNGLib.Utility;
+using LunaPNG;
+using LunaPNG.Utility;
 
 namespace GraphicsDecompress {
 	public class IndexedBitmap {

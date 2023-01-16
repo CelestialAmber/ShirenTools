@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace PNGLib.Filters {
+namespace LunaPNG.Filters {
 	public class NONEFilter : Filter {
 
 		public NONEFilter(byte[,] channel, int bitDepth) : base(channel, bitDepth) {

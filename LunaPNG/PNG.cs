@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using PNGLib.Chunks;
+using LunaPNG.Chunks;
 
-namespace PNGLib {
+namespace LunaPNG {
 	/*
 	PNG Format:
 

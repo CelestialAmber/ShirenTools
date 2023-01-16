@@ -2,11 +2,11 @@
 using System.IO.Compression;
 using System.IO;
 using System.Collections.Generic;
-using PNGLib.Utility;
-using PNGLib.Chunks;
-using PNGLib.Filters;
+using LunaPNG.Utility;
+using LunaPNG.Chunks;
+using LunaPNG.Filters;
 
-namespace PNGLib {
+namespace LunaPNG {
 
 	public class PNGEncoder {
 		//Converts an indexed image to PNG, and returns the data.
