@@ -10,15 +10,21 @@ namespace LunaPNG {
 
 	public class PNGEncoder {
 		//Converts an indexed image to PNG, and returns the data.
-		//Only 4bpp indexed images are supported.
+		//Only 1/2/4bpp indexed images are supported.
 		public static byte[] EncodeIndexedImageToPNG(int width, int height, byte bitDepth, byte[,] imageData, Color[] palette) {
 			//Check if the image data is valid
 			switch (bitDepth) {
+				case 1:
+				if (palette.Length != 2) throw new Exception("Error: Palette size should be 2 for 1bpp images");
+				break;
+				case 2:
+				if (palette.Length != 4) throw new Exception("Error: Palette size should be 4 for 2bpp images");
+				break;
 				case 4:
-					if (palette.Length != 16) throw new Exception("Error: Palette size should be 16 for 4bpp images");
-					break;
+				if (palette.Length != 16) throw new Exception("Error: Palette size should be 16 for 4bpp images");
+				break;
 				default:
-					throw new NotImplementedException("Bit depths other than 4 aren't supported");
+				throw new NotImplementedException("Bit depths other than 1/2/4 aren't supported");
 			}
 
 			PNG png = new PNG();

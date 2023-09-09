@@ -3,13 +3,15 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 25.0.1703.5
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TextDumper", "ShirenTools\TextDumper.csproj", "{5B829332-1A47-45F6-B5E0-D7338D15F5AD}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TextDumper", "TextDumper\TextDumper.csproj", "{5B829332-1A47-45F6-B5E0-D7338D15F5AD}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GraphicsDecompress", "GraphicsDecompress\GraphicsDecompress.csproj", "{4FC5CB5E-AA1D-4D64-BAE8-C7E12A4BB089}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SPCStuff", "SPCStuff\SPCStuff.csproj", "{F7B6DF48-9A25-40D5-B298-724424C936C1}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LunaPNG", "LunaPNG\LunaPNG.csproj", "{C9058BE6-475D-4E65-8153-3B1CCA380FE8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ShirenTools", "ShirenTools\ShirenTools.csproj", "{3C8222B5-3D4E-4C3D-9E5A-7ADE696A563E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -33,6 +35,10 @@ Global
 		{C9058BE6-475D-4E65-8153-3B1CCA380FE8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C9058BE6-475D-4E65-8153-3B1CCA380FE8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C9058BE6-475D-4E65-8153-3B1CCA380FE8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3C8222B5-3D4E-4C3D-9E5A-7ADE696A563E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3C8222B5-3D4E-4C3D-9E5A-7ADE696A563E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3C8222B5-3D4E-4C3D-9E5A-7ADE696A563E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3C8222B5-3D4E-4C3D-9E5A-7ADE696A563E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -16,6 +16,9 @@
     <None Update="palettes.pal">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Update="attack_down_2.4bpp.lz">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\LunaPNG\LunaPNG.csproj" />

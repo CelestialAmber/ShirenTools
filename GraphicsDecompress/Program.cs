@@ -8,10 +8,6 @@ using GraphicsDecompress.Utils;
 namespace GraphicsDecompress {
 
 	public class Program {
-		public static int totalFiles, mismatchedFiles;
-		public static Logger logger;
-
-
 		public static List<Color[]> palettes = new List<Color[]>();
 
 		public static Color[] grayscalePalette = {
@@ -21,96 +17,164 @@ namespace GraphicsDecompress {
 			new Color(190,190,190), new Color(206,206,206), new Color(220,220,220), new Color(236,236,236)
 		};
 
+		public static Color[] grayscalePalette1bpp = {
+			new Color(0,0,0), new Color(255, 255, 255)
+		};
 
+		public static Color[] grayscalePalette2bpp = {
+			new Color(0,0,0), new Color(80,80,80), new Color(160,160,160), new Color(255, 255, 255)
+		};
+
+		public static bool noHeader = false;
+		public static int optionWidth = -1;
+		public static int optionBpp = -1;
+		public static Pattern patternToUse = Pattern.Horizontal;
 
 		public static void Main(string[] args) {
-			DecompressFolders();
-		}
 
-		public static void DecompressFolders() {
-			LoadSNESPaletteData();
-			logger = new Logger("fileHeaders.txt");
-			logger.ClearFile();
+			if (args.Length < 2)
+			{
+				Console.WriteLine("Usage: GraphicsDecompress command path [-noheader] [-w[num]] [-v] [-bpp[1/2/4]");
+				Console.WriteLine("Commands:\ncompress - Compresses a 4bpp file.\ndecompress - Decompresses a 4bpp.lz file\npng - Converts a 1/2/4bpp file to png");
+				Console.WriteLine("Optional arguments:");
+			}else{
+				LoadSNESPaletteData();
 
-			/* //Convert uncompressed 4bpp files
-			 foreach (string file in Directory.EnumerateFiles("charactersprites/shiren", "*.4bpp", SearchOption.AllDirectories)) {
-				 byte[] data = File.ReadAllBytes(file);
-				 string filename = file.Remove(file.IndexOf(".")); //remove the extension
-				 //Uncompressed character graphics (Shiren) store tiles in a weird horizontal order instead of vertical
-				 //The width is 32, but I don't feel like dealing with the dumb tile pattern so I'm treating it as 64 for now (matches how it is in VRAM anyway)
-				 //Row order: 1 3 2 4
-				 SKBitmap bitmap = ConvertToImage(data, 64, Pattern.Horizontal);
-				 SaveImageAsPng(filename + ".png", bitmap);
-			 }*/
+				for(int i = 2; i < args.Length; i++){
+					if (args[i] == "-noheader") noHeader = true;
+					else if (args[i].StartsWith("-w")) optionWidth = int.Parse(args[i].Replace("-w", ""));
+					else if (args[i] == "-v") patternToUse = Pattern.Vertical;
+					else if (args[i].StartsWith("-bpp")) optionBpp = int.Parse(args[i].Replace("-bpp", ""));
+				}
 
+				int bpp = 4;
 
-			foreach (string file in Directory.EnumerateFiles("characters", "*.4bpp.lz", SearchOption.AllDirectories)) {
-				DecompressFile(file, true, Pattern.Vertical, 32);
+				if (optionBpp != -1) bpp = optionBpp;
+
+				string command = args[0];
+
+				switch (command) {
+					case "compress":
+						if (Directory.Exists(args[1]))
+						{
+							string[] extensions = { ".1bpp.lz", ".2bpp.lz", ".4bpp.lz" };
+							foreach (string file in Directory.EnumerateFiles(args[1], "*.*", SearchOption.AllDirectories).Where(s => extensions.Any(ext => s.EndsWith(ext)))){
+								CompressFile(file, !noHeader);
+							}
+						}
+						else
+						{
+							CompressFile(args[1], !noHeader);
+						}
+					break;
+					case "decompress":
+						if (Directory.Exists(args[1])) {
+							string[] extensions = { ".1bpp.lz", ".2bpp.lz", ".4bpp.lz" };
+							foreach (string file in Directory.EnumerateFiles(args[1], "*.*", SearchOption.AllDirectories).Where(s => extensions.Any(ext => s.EndsWith(ext)))) {
+								DecompressFile(file,!noHeader,patternToUse);
+							}
+						} else {
+							DecompressFile(args[1], !noHeader, patternToUse);
+						}
+					break;
+					case "png":
+						if (Directory.Exists(args[1]))
+						{
+							foreach (string file in Directory.EnumerateFiles(args[1], "*.4bpp", SearchOption.AllDirectories))
+							{
+								ConvertToPng(file);
+							}
+						}
+						else
+						{
+							ConvertToPng(args[1]);
+						}
+						break;
+				}
 			}
 
-			//Console.WriteLine("Non-matching files: " + mismatchedFiles + "/" + totalFiles);
-
-			/*
-			foreach (string file in Directory.EnumerateFiles("items", "*.4bpp.lz", SearchOption.AllDirectories)) {
-				DecompressFile(file, false, Pattern.Horizontal, 128);
-			}*/
-
 		}
 
-		public static void DecompressFile(string file, bool hasHeaderByte, Pattern pattern, int size) {
-			string filename = file.Remove(file.IndexOf(".")); //remove the extension
+		public static void ConvertToPng(string file)
+		{
+			byte[] data = File.ReadAllBytes(file);
+			if (optionWidth == -1) throw new Exception("Error: Width not specified.");
+			int height = (data.Length * 2) / optionWidth;
+			int bitDepth = DetermineBPPFromExtension(file);
+			string path = Path.ChangeExtension(file, ".png");
+			ConvertToImage(data, optionWidth, patternToUse, bitDepth).Save(path);
+		}
+
+		public static void CompressFile(string file, bool hasHeaderByte)
+		{
+			byte[] data = File.ReadAllBytes(file);
+			byte[] compressedData;
+			int bitDepth = DetermineBPPFromExtension(file);
+
+			if (hasHeaderByte) {
+				string filename = file.Replace(".4bpp", "").Replace(".2bpp", "").Replace(".1bpp", "");
+				ShirenImageHeader header = new ShirenImageHeader(filename, data.Length);
+				compressedData = ShirenImage.Compress(data, bitDepth, true, header.CalculateHeaderByte());
+			}else{
+				compressedData = ShirenImage.Compress(data, bitDepth, false);
+			}
+
+			File.WriteAllBytes(file + ".lz", compressedData);
+		}
+
+
+		public static void DecompressFile(string file, bool hasHeaderByte, Pattern pattern, int defaultWidth = 32) {
+			//Remove the file extension from the path
+			string filename = Path.GetFileNameWithoutExtension(file).Replace(".4bpp", "").Replace(".2bpp", "").Replace(".1bpp", "");
+			string? basePath = Path.GetDirectoryName(file);
 			string newFilename = filename;
+			byte[] data = File.ReadAllBytes(file);
+			int width = defaultWidth, height = 0;
+			int bpp = (optionBpp != -1) ? optionBpp : DetermineBPPFromExtension(file);
 
-			if (!filename.Contains("_recompressed"))
+			if (hasHeaderByte)
 			{
-				byte[] data = File.ReadAllBytes(file);
-
-				//Console.WriteLine("Decompressing " + file);
-
-				byte headerByte = 0;
-
-				ShirenImageHeader header;
-
-				if (hasHeaderByte)
-				{
-					headerByte = data[0];
-					header = new ShirenImageHeader(headerByte);
+				if(bpp == 1) {
+					//Kointai graphics
+					byte headerByte = data[0];
+					width = (headerByte + 1) * 8;
+				} else if (bpp == 4) {
+					byte headerByte = data[0];
+					ShirenImageHeader header = new ShirenImageHeader(headerByte);
 
 					//If the pixel offset isn't zero, save the pixel offset information to the file name
-					//TODO: Find a better way of handling this
-					if (header.pixelOffset != 0)
-					{
-						newFilename += "." + (header.pixelOffsetDirection == 0 ? "right" : "left") + header.pixelOffset;
-					}
+					if (header.pixelOffset != 0) newFilename += "." + (header.pixelOffsetDirection == 0 ? "right" : "left") + header.pixelOffset;
+					if (header.unk1) newFilename += ".unkflag";
+
+					width = header.width;
+					height = header.height;
 				}
-
-				byte[] decompressedData = ShirenImage.Decompress(data, 4, hasHeaderByte);
-				
-				File.WriteAllBytes(newFilename + ".4bpp", decompressedData);
-
-				/*
-				//Recompress the data for testing
-				byte[] recompressedData;
-				if(hasHeaderByte) recompressedData = ShirenImage.Compress(decompressedData, 4, headerByte);
-				else recompressedData = ShirenImage.Compress(decompressedData, 4);
-
-				File.WriteAllBytes(filename + "_recompressed.4bpp.lz", recompressedData);
-
-				for (int i = 0; i < data.Length; i++) {
-					if (data[i] != recompressedData[i]) {
-						Console.WriteLine("Recompressed data does not match");
-						mismatchedFiles++;
-						break;
-					}
-				}
-				*/
-
-				//Tiles in most compressed 4bpp graphics are arranged vertically
-				IndexedBitmap bitmap = ConvertToImage(decompressedData.ToArray(), size, pattern);
-				bitmap.Save(newFilename + ".png");
-
-				//totalFiles++;
 			}
+
+			byte[] decompressedData = ShirenImage.Decompress(data, bpp, hasHeaderByte);
+
+			//If the file doesn't have a header byte or the file is 1bpp and has one, derive the height manually
+			if (!hasHeaderByte || (hasHeaderByte && bpp == 1)) height = (decompressedData.Length*2)/width;
+
+			if (basePath != "") basePath += "/";
+
+			string extension = bpp == 1 ? ".1bpp" : bpp == 2 ? ".2bpp" : ".4bpp";
+
+			File.WriteAllBytes(basePath + newFilename + extension, decompressedData);
+
+			if (optionWidth != -1) width = optionWidth;
+
+			//Tiles in most compressed 4bpp graphics are arranged vertically
+			IndexedBitmap bitmap = ConvertToImage(decompressedData.ToArray(), width, pattern, bpp);
+			bitmap.Save(basePath + newFilename + ".png");
+			
+		}
+
+		public static int DetermineBPPFromExtension(string file) {
+			if (file.Contains(".1bpp")) return 1;
+			else if (file.Contains(".2bpp")) return 2;
+			else if (file.Contains(".4bpp")) return 4;
+			return 4;
 		}
 
 		public enum Pattern {
@@ -119,39 +183,44 @@ namespace GraphicsDecompress {
 		}
 
 		//Convert the decompressed graphics data to an image.
-		//TODO: add support for 1bpp images
-		public static IndexedBitmap ConvertToImage(byte[] data, int size, Pattern pattern) {
-			int tiles = data.Length / 32;
-			int tileWidth = 0;
-			int tileHeight = 0;
-
-			if (pattern == Pattern.Horizontal) {
-				tileWidth = size / 8;
-				tileHeight = (int)Math.Ceiling((float)tiles / (float)tileWidth);
-			} else if (pattern == Pattern.Vertical) {
-				tileHeight = size / 8;
-				tileWidth = (int)Math.Ceiling((float)tiles / (float)tileHeight);
-			}
-
-			int width = tileWidth * 8;
+		public static IndexedBitmap ConvertToImage(byte[] data, int width, Pattern pattern, int bitDepth) {
+			int bytesPerTile = (bitDepth * 8);
+			int tiles = data.Length / bytesPerTile;
+			int tileWidth = width / 8;
+			int tileHeight = (int)Math.Ceiling((float)tiles / (float)tileWidth);
 			int height = tileHeight * 8;
-			IndexedBitmap bitmap = new IndexedBitmap(width, height, 4, palettes[11]);
+
+			Color[] palette = bitDepth == 1 ? grayscalePalette1bpp : bitDepth == 2 ? grayscalePalette2bpp : grayscalePalette;
+
+			IndexedBitmap bitmap = new IndexedBitmap(width, height, bitDepth, palette);
 
 			for (int i = 0; i < tiles; i++) {
 				//Calculate the current tile offset
-				int tileOffset = 32 * i;
+				int tileOffset = bytesPerTile * i;
 
 
 				for (int x = 0; x < 8; x++) {
 					for (int y = 0; y < 8; y++) {
-						int tileByteIndex = y * 2;
-						//Bottom 2bpp plane
-						int bit0 = (data[tileOffset + tileByteIndex] >> (7 - x)) & 1;
-						int bit1 = (data[tileOffset + tileByteIndex + 1] >> (7 - x)) & 1;
-						//Top 2bpp plane
-						int bit2 = (data[tileOffset + tileByteIndex + 16] >> (7 - x)) & 1;
-						int bit3 = (data[tileOffset + tileByteIndex + 16 + 1] >> (7 - x)) & 1;
-						byte col = (byte)(bit0 + (bit1 << 1) + (bit2 << 2) + (bit3 << 3));
+						byte col = 0;
+
+						if (bitDepth == 1) {
+							int tileByteIndex = y;
+							col = (byte)((data[tileOffset + tileByteIndex] >> (7 - x)) & 1);
+						}else if(bitDepth == 2) {
+							int tileByteIndex = y * 2;
+							int bit0 = (data[tileOffset + tileByteIndex] >> (7 - x)) & 1;
+							int bit1 = (data[tileOffset + tileByteIndex + 1] >> (7 - x)) & 1;
+							col = (byte)(bit0 + (bit1 << 1));
+						} else if (bitDepth == 4) {
+							int tileByteIndex = y * 2;
+							//Bottom 2bpp plane
+							int bit0 = (data[tileOffset + tileByteIndex] >> (7 - x)) & 1;
+							int bit1 = (data[tileOffset + tileByteIndex + 1] >> (7 - x)) & 1;
+							//Top 2bpp plane
+							int bit2 = (data[tileOffset + tileByteIndex + 16] >> (7 - x)) & 1;
+							int bit3 = (data[tileOffset + tileByteIndex + 16 + 1] >> (7 - x)) & 1;
+							col = (byte)(bit0 + (bit1 << 1) + (bit2 << 2) + (bit3 << 3));
+						}
 
 
 						if (pattern == Pattern.Vertical) { //Vertical
@@ -172,8 +241,8 @@ namespace GraphicsDecompress {
 
 
 		public static void LoadSNESPaletteData() {
-			byte[] data = File.ReadAllBytes("palettes.pal");
-
+			string applicationDirectory = AppDomain.CurrentDomain.BaseDirectory;
+			byte[] data = File.ReadAllBytes(applicationDirectory + "/palettes.pal");
 
 			for (int i = 0; i < 16; i++) {
 				Color[] newPallete = new Color[16];

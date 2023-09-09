@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Reflection.PortableExecutable;
 using System.Text;
 
 namespace GraphicsDecompress
@@ -9,7 +11,7 @@ namespace GraphicsDecompress
 	/*Header format (1 byte, starting from leftmost bit):
 	Bits 0-1: image type (2 bit, 0: 32x32 uncompressed, 1: 16x32 compressed, 2: 24x32 compressed, 3: 32x32 compressed)
 	Bit 2: pixel offset direction (0: right, 1: left)
-	Bit 3: unused
+	Bit 3: unknown flag
 	Bits 4-7: pixel offset (4 bit)
 
 	The direction is always 0 (right) if the pixel offset is 0
@@ -20,8 +22,17 @@ namespace GraphicsDecompress
 		public int type;
 		public int width, height;
 		public bool compressed;
+		public bool unk1; //bit 3
 		public int pixelOffsetDirection;
 		public int pixelOffset;
+
+		public ShirenImageHeader(string filename, int length)
+		{
+			height = 32;
+			width = (length * 2) / height;
+			DetermineImageType();
+			ParseFilename(filename);
+		}
 
 		public ShirenImageHeader(byte headerByte) {
 			this.headerByte = headerByte;
@@ -55,8 +66,43 @@ namespace GraphicsDecompress
 					break;
 			}
 
-			pixelOffsetDirection = ((headerByte >> 5) & 1);
+			pixelOffsetDirection = (headerByte >> 5) & 1;
+			unk1 = ((headerByte >> 4) & 1) == 1 ? true : false;
 			pixelOffset = headerByte & 0xF;
+		}
+
+		void ParseFilename(string filename)
+		{
+			string[] parts = filename.Split(".");
+
+			foreach (string part in parts) {
+				if (part.StartsWith("right")) {
+					pixelOffsetDirection = 0;
+					pixelOffset = int.Parse(part.Replace("right", ""));
+				} else if (part.StartsWith("left")) {
+					pixelOffsetDirection = 1;
+					pixelOffset = int.Parse(part.Replace("left", ""));
+				}
+				if (part == "unkflag") {
+					unk1 = true;
+				}
+			}
+		}
+
+		void DetermineImageType()
+		{
+			if (width == 16) type = 1;
+			else if (width == 24) type = 2;
+			else if(width == 32)
+			{
+				if (compressed) type = 3;
+				else type = 0;
+			}
+		}
+
+		public byte CalculateHeaderByte()
+		{
+			return (byte)((type << 6) | (pixelOffsetDirection << 5) | ((unk1 ? 1 : 0) << 4) | (pixelOffset & 0xF));
 		}
 
 		public override string ToString()
@@ -112,7 +158,7 @@ namespace GraphicsDecompress
 		*/
 		public static byte[] Decompress(byte[] data, int bitsPerPixel, bool hasHeaderByte) {
 			offset = 0;
-			bool debugInfo = false;
+			bool debugInfo = true;
 
 			if (hasHeaderByte) offset++;
 
@@ -137,6 +183,10 @@ namespace GraphicsDecompress
 								for (int j = 0; j < 8; j++) {
 									decompressedBytes.Add(ReadByte(data));
 								}
+							}else if(bitsPerPixel == 2) {
+								for (int j = 0; j < 16; j++) {
+									decompressedBytes.Add(ReadByte(data));
+								}
 							} else if (bitsPerPixel == 4) {
 								for (int j = 0; j < 32; j++) {
 									decompressedBytes.Add(ReadByte(data));
@@ -148,6 +198,11 @@ namespace GraphicsDecompress
 							if (bitsPerPixel == 1) {
 								//Add eight 0 bytes to the list
 								for (int j = 0; j < 8; j++) {
+									decompressedBytes.Add(0);
+								}
+							} else if (bitsPerPixel == 2) {
+								//Add 16 0 bytes
+								for (int j = 0; j < 16; j++) {
 									decompressedBytes.Add(0);
 								}
 							} else if (bitsPerPixel == 4) {
@@ -194,6 +249,56 @@ namespace GraphicsDecompress
 									tileByte >>= 1; //Go to the next bit
 								}
 
+							} else if (bitsPerPixel == 2) {
+								//2bpp
+								byte tileByte = ReadByte(data);
+								byte lastLineByte1 = 0, lastLineByte2 = 0; //Starts at 0 for type 3 (black line)
+
+								if (debugInfo) Console.WriteLine("Tile lines value: " + tileByte.ToString("X4"));
+
+								if (blockType == 2) {
+									int currentHalf = 0;
+									int startIndex = decompressedBytes.Count; //used to keep track of where to add the first half bytes
+
+									for (int j = 0; j < 8; j++) {
+										int bit = tileByte & 0x1; //Get the next bit
+
+										if (bit == 0) {
+											//Add a 0 byte for each line
+											decompressedBytes.Add(0);
+											decompressedBytes.Add(0);
+										} else {
+											//Read 2 bytes for the current 2 lines
+											byte line1Byte = ReadByte(data), line2Byte = ReadByte(data);
+											decompressedBytes.Add(line1Byte);
+											decompressedBytes.Add(line2Byte);
+										}
+
+										tileByte >>= 1; //Go to the next bit
+										currentHalf = 1 - currentHalf; //Switch to the other half
+									}
+								} else {
+									for (int j = 0; j < 8; j++) {
+										int bit = tileByte & 0x1; //Get the next bit
+
+										if (bit == 0) {
+											//If type 3, repeat the last 2 line bytes
+											decompressedBytes.Add(lastLineByte1);
+											decompressedBytes.Add(lastLineByte2);
+										} else {
+											//Read 2 byte for the current 2 lines
+											byte line1Byte = ReadByte(data), line2Byte = ReadByte(data);
+											decompressedBytes.Add(line1Byte);
+											decompressedBytes.Add(line2Byte);
+
+											//update the last specified byte to the current one
+											lastLineByte1 = line1Byte;
+											lastLineByte2 = line2Byte;
+										}
+
+										tileByte >>= 1; //Go to the next bit
+									}
+								}
 							} else if (bitsPerPixel == 4) {
 								//4bpp
 								//Each bit represents 2 lines
@@ -288,6 +393,7 @@ namespace GraphicsDecompress
 
 			}
 			catch (Exception e) {
+				Console.WriteLine(e);
 				Console.WriteLine("Failed to decompress file");
 				return decompressedBytes.ToArray();
 			}
@@ -299,74 +405,99 @@ namespace GraphicsDecompress
 			return array[offset++];
 		}
 
-		public static byte[] Compress(byte[] imageData, int bitDepth)
-		{
-			List<byte> compressedData = new List<byte>();
-			return CompressMain(compressedData, imageData, bitDepth);
-		}
-
-		public static byte[] Compress(byte[] imageData, int bitDepth, byte headerByte) {
-			List<byte> compressedData = new List<byte>();
-			compressedData.Add(headerByte);
-			return CompressMain(compressedData, imageData, bitDepth);
-		}
-
 		//TODO: add support for 1bpp images
-		public static byte[] CompressMain(List<byte> compressedData, byte[] imageData, int bitDepth) {
+		public static byte[] Compress(byte[] imageData, int bitDepth, bool hasHeaderByte, byte headerByte = 0) {
 			
-			bool debugInfo = false;
+			bool debugInfo = true;
 
-			int tiles = imageData.Length / 32;
+			List<byte> compressedData = new List<byte>();
 
-			if (bitDepth == 4) {
-				//Compress tiles in groups of 4
-				for (int i = 0; i < tiles; i += 4) {
-					if (debugInfo) Console.WriteLine("Creating block " + (i / 4));
-					byte groupByte = 0;
-					List<byte> groupData = new List<byte>();
+			if(hasHeaderByte) compressedData.Add(headerByte);
 
-					//For each tile in the group, try each compression method and choose the best one
-					for (int j = 0; j < 4; j++) {
-						if (debugInfo) Console.WriteLine("Compressing tile " + j);
+			int tileSize = 8 * bitDepth;
+			int tiles = imageData.Length / tileSize;
 
-						byte[] tileData = imageData.Skip(32 * (i + j)).Take(32).ToArray();
-						int minLength = 0;
-						int type;
-						List<byte> compressedTileData = new List<byte>();
+			//Compress tiles in groups of 4
+			for (int i = 0; i < tiles; i += 4) {
+				if (debugInfo) Console.WriteLine("Creating block " + (i / 4));
+				byte groupByte = 0;
+				List<byte> groupData = new List<byte>();
 
-						if (debugInfo) Print4bppTile(tileData);
+				//For each tile in the group, try each compression method and choose the best one
+				for (int j = 0; j < 4; j++) {
+					if (debugInfo) Console.WriteLine("Compressing tile " + j);
 
-						//Try all 4 methods, and choose the best
+					byte[] tileData = imageData.Skip(tileSize * (i + j)).Take(tileSize).ToArray();
+					int minLength = 0;
+					int type;
+					List<byte> compressedTileData = new List<byte>();
 
-						//Check if the tile is blank (all 0 bytes)
-						bool blank = true;
+					//if (debugInfo) Print4bppTile(tileData);
 
-						foreach (byte b in tileData) {
-							if (b != 0) {
-								blank = false;
-								break;
-							}
+					//Check if the tile is blank (all 0 bytes)
+					bool blank = true;
+
+					foreach (byte b in tileData) {
+						if (b != 0) {
+							blank = false;
+							break;
 						}
+					}
 
-						//If the tile is blank, use type 1 (blank tile)
-						if (blank) {
-							if (debugInfo) Console.WriteLine("Tile is blank, using type 1");
-							type = 1;
-						} else {
-							//Type 0 (uncompressed)
-							compressedTileData = tileData.ToList();
-							minLength = compressedTileData.Count;
-							type = 0;
+					//If the tile is blank, use type 1 (blank tile)
+					if (blank) {
+						if (debugInfo) Console.WriteLine("Tile is blank, using type 1");
+						type = 1;
+					} else {
+						//Type 0 (uncompressed)
+						compressedTileData = tileData.ToList();
+						minLength = compressedTileData.Count;
+						type = 0;
 
-							if (debugInfo) Console.WriteLine("Type 0 size: " + tileData.Length);
+						//Type 2 (both halves are combined, missing lines are blank)
 
-							//Type 2 (both halves are combined, missing lines are blank)
+						List<byte> tempTileData = new List<byte>();
 
-							List<byte> tempTileData = new List<byte>();
-							//Info value for types 2/3
-							ushort tileInfoVal = 0;
+						ushort tileInfoVal = 0;
 
-							for (int k = 0; k < 8; k++) {
+						for (int k = 0; k < 8; k++) {
+							if (bitDepth == 1) {
+								int lineBit;
+								byte planeByte = tileData[k];
+
+								//Check the first/second half separately
+
+								//If the byte is 0, then the line bit is 0 (blank line)
+								if (planeByte == 0) {
+									lineBit = 0;
+								} else {
+									//Otherwise, add the byte to the list
+									lineBit = 1;
+									tempTileData.Add(planeByte);
+								}
+
+								//Write the two line bits to the info byte
+								tileInfoVal |= (byte)(lineBit << k);
+							}else if(bitDepth == 2) {
+								int lineBit;
+								byte plane1Byte = tileData[k * 2];
+								byte plane2Byte = tileData[k * 2 + 1];
+
+								//Check the first/second half separately
+
+								//If both bytes are 0, then the first line bit is 0 (blank line)
+								if (plane1Byte == 0 && plane2Byte == 0) {
+									lineBit = 0;
+								} else {
+									//Otherwise, add the first two bytes to the list
+									lineBit = 1;
+									tempTileData.Add(plane1Byte);
+									tempTileData.Add(plane2Byte);
+								}
+
+								//Write the two line bits to the info byte
+								tileInfoVal |= (byte)(lineBit << k);
+							} else if(bitDepth == 4) {
 								int lineBit1; //1st line bit
 								int lineBit2; //2nd line bit
 								byte plane1Byte = tileData[k * 2];
@@ -398,27 +529,54 @@ namespace GraphicsDecompress
 								//Write the two line bits to the info byte
 								tileInfoVal |= (ushort)((lineBit2 << (k * 2 + 1)) | (lineBit1 << (k * 2)));
 							}
+						}
 
-							//Write the tile info value
+						//Write the tile info value
+						if (bitDepth == 1 || bitDepth == 2) {
+							tempTileData.Insert(0, (byte)(tileInfoVal & 0xFF));
+						} else {
 							tempTileData.Insert(0, (byte)(tileInfoVal >> 8));
 							tempTileData.Insert(0, (byte)(tileInfoVal & 0xFF));
+						}
 
+						if (debugInfo) Console.WriteLine("Type 2 info val: " + tileInfoVal.ToString("X4"));
 
-							if (tempTileData.Count < minLength) {
-								compressedTileData = tempTileData;
-								minLength = tempTileData.Count;
-								type = 2;
+						if (tempTileData.Count < minLength) {
+							compressedTileData = tempTileData;
+							minLength = tempTileData.Count;
+							type = 2;
+						}
+
+						if (debugInfo) Console.WriteLine("Type 2 size: " + tempTileData.Count);
+
+						//Type 3 (halves are kept separate, missing lines use last defined line (blank by default))
+
+						List<byte> tempTileData1 = new List<byte>();
+
+						tileInfoVal = 0;
+						byte[] lastLineBytes = new byte[2];
+
+						if(bitDepth == 1) {
+							for (int k = 0; k < 8; k++) {
+								int lineBit;
+								byte planeByte = tileData[k];
+
+								//If the byte is the same as the last byte, then the line bit is 0
+								if (planeByte == lastLineBytes[0]) {
+									lineBit = 0;
+								} else {
+									//Otherwise, add the byte to the list
+									lineBit = 1;
+									tempTileData1.Add(planeByte);
+								}
+
+								lastLineBytes[0] = planeByte;
+
+								//Write the line bit to the info byte
+								tileInfoVal |= (ushort)(lineBit << k);
 							}
-
-							if (debugInfo) Console.WriteLine("Type 2 size: " + tempTileData.Count);
-
-							//Type 3 (halves are kept separate, missing lines use last defined line (blank by default))
-
-							List<byte> tempTileData1 = new List<byte>();
-							tileInfoVal = 0;
-							byte[] lastLineBytes = new byte[2];
-
-							for (int k = 0; k < 16; k++) {
+						}else{
+							for (int k = 0; k < (bitDepth == 2 ? 8 : 16); k++) {
 								int lineBit;
 								byte plane1Byte = tileData[k * 2];
 								byte plane2Byte = tileData[k * 2 + 1];
@@ -439,35 +597,38 @@ namespace GraphicsDecompress
 								//Write the line bit to the info byte
 								tileInfoVal |= (ushort)(lineBit << k);
 							}
-
-							//Write the tile info value
-							tempTileData1.Insert(0, (byte)(tileInfoVal >> 8));
-							tempTileData1.Insert(0, (byte)(tileInfoVal & 0xFF));
-
-
-
-							if (tempTileData1.Count < minLength) {
-								compressedTileData = tempTileData1;
-								minLength = tempTileData1.Count;
-								type = 3;
-							}
-
-							if (debugInfo) Console.WriteLine("Type 3 size: " + tempTileData1.Count);
 						}
 
-						if (debugInfo) Console.WriteLine("Chose type " + type);
-						groupData.AddRange(compressedTileData);
-						//Write the current type to the group byte
-						groupByte |= (byte)((type & 3) << (j * 2));
+						//Write the tile info value
+						if (bitDepth == 1 || bitDepth == 2) {
+							tempTileData1.Insert(0, (byte)(tileInfoVal & 0xFF));
+						} else {
+							tempTileData1.Insert(0, (byte)(tileInfoVal >> 8));
+							tempTileData1.Insert(0, (byte)(tileInfoVal & 0xFF));
+						}
+
+						if (debugInfo) Console.WriteLine("Type 3 info val: " + tileInfoVal.ToString("X4"));
+						
+
+						if (tempTileData1.Count < minLength) {
+							compressedTileData = tempTileData1;
+							minLength = tempTileData1.Count;
+							type = 3;
+						}
+
+						if (debugInfo) Console.WriteLine("Type 3 size: " + tempTileData1.Count);
 					}
 
-					//Add the group byte
-					groupData.Insert(0, groupByte);
-
-					compressedData.AddRange(groupData);
+					if (debugInfo) Console.WriteLine("Chose type " + type);
+					groupData.AddRange(compressedTileData);
+					//Write the current type to the group byte
+					groupByte |= (byte)((type & 3) << (j * 2));
 				}
-			} else {
-				//handle 1bpp
+
+				//Add the group byte
+				groupData.Insert(0, groupByte);
+
+				compressedData.AddRange(groupData);
 			}
 
 			return compressedData.ToArray();

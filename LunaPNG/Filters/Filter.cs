@@ -19,7 +19,31 @@ namespace LunaPNG.Filters {
 		public List<byte> PackLine(byte[] lineData) {
 			List<byte> packedLineData = new List<byte>();
 
-			if (bitDepth == 4) {
+			if (bitDepth == 1) {
+				//Pack eight pixels into every byte
+				for (int i = 0; i < lineData.Length; i += 8) {
+					//If there is only one pixel left, only pack that pixel
+					byte currentByte = 0;
+					for(int j = 0; j < 8; j++) {
+						if(i + j < lineData.Length) {
+							currentByte |= (byte)(lineData[i + j] << (7 - j));
+						}
+					}
+					packedLineData.Add(currentByte);
+				}
+			}else if (bitDepth == 2) {
+				//Pack four pixels into every byte
+				for (int i = 0; i < lineData.Length; i += 4) {
+					//If there is only one pixel left, only pack that pixel
+					byte currentByte = 0;
+					for (int j = 0; j < 4; j++) {
+						if (i + j < lineData.Length) {
+							currentByte |= (byte)(lineData[i + j] << ((3 - j)*2));
+						}
+					}
+					packedLineData.Add(currentByte);
+				}
+			}else if (bitDepth == 4) {
 				//Pack two pixels into every byte
 				for (int i = 0; i < lineData.Length; i += 2) {
 					//If there is only one pixel left, only pack that pixel
@@ -27,7 +51,7 @@ namespace LunaPNG.Filters {
 					packedLineData.Add(currentByte);
 				}
 			} else {
-				throw new Exception("Error: Only 4bpp is supported for now");
+				throw new Exception("Error: Only 1/2/4 bpp is supported for now");
 			}
 
 			return packedLineData;
